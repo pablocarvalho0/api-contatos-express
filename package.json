@@ -1,5 +1,5 @@
 {
-  "name": "primeiro-servidor",
+  "name": "api-contatos-express",
   "version": "1.0.0",
   "description": "API REST de contatos em Express + TypeScript — projeto de estudo focado no ciclo de vida da requisição, escopo de middlewares e tratamento centralizado de erros.",
   "main": "index.js",
