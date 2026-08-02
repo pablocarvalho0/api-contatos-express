@@ -3,3 +3,7 @@ node_modules/
 .env.local
 dist/
 *.log
+
+# configuração local de ferramentas (por máquina, não versionar)
+.claude/settings.local.json
+.gstack/
