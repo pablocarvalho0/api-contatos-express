@@ -1,7 +1,7 @@
 {
   "name": "primeiro-servidor",
   "version": "1.0.0",
-  "description": "",
+  "description": "API REST de contatos em Express + TypeScript — projeto de estudo focado no ciclo de vida da requisição, escopo de middlewares e tratamento centralizado de erros.",
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -9,8 +9,8 @@
     "test": "bash src/tests/test-rotas.sh"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Pablo Carvalho <pablocnsantos@gmail.com>",
+  "license": "MIT",
   "type": "module",
   "dependencies": {
     "express": "^5.2.1",
