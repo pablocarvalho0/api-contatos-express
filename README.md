@@ -64,10 +64,14 @@ de conexão do Postgres, então algo como `?schema=public` derruba a conexão co
 
 ### Sobre o smoke test
 
-Usa `curl` e `jq` e assume o servidor já rodando em outro terminal. O teste de
-`GET /contacts/:id` usa um UUID fixo — troque pelo id de um contato que exista no
-seu banco, ou ele vai bater no `404` esperado por outro motivo. As seções de
-caminho triste (id inválido, JSON quebrado, e-mail inválido) valem
+Usa `curl` e `jq` e assume o servidor já rodando em outro terminal. Ele começa
+checando o `/ping` e aborta se ninguém responder — assim uma suíte inteira de
+falhas não passa por bug de código quando o problema é servidor desligado.
+
+O id usado no `GET /contacts/:id` **sai da própria listagem** via `jq`, em vez de
+ficar chumbado no arquivo: id fixo só existe no banco de quem escreveu o teste.
+Se a tabela estiver vazia, esse caso é pulado com aviso. Os demais (id
+malformado, JSON quebrado, e-mail inválido, uuid inexistente) valem
 independentemente dos dados.
 
 ---
@@ -92,10 +96,12 @@ Rotas com `:id` passam pelo middleware `validar-id` antes do controller.
 |------|--------|
 | `GET /contacts` | ✅ lê do Postgres (`getAllContacts`) |
 | `GET /contacts/:id` | ✅ lê do Postgres (`getContactById`) |
-| `GET /contacts?name=` | ⏳ próximo passo |
+| `GET /contacts?name=` | ✅ lê do Postgres (`getContactByName`, busca parcial com `ilike`) |
 | `POST /contacts` | ⏳ validação de payload já roda; persistência pendente |
 | `PUT /contacts/:id` | ⏳ pendente |
 | `DELETE /contacts/:id` | ⏳ pendente |
+
+Ou seja: **a leitura toda já está no banco; falta a escrita.**
 
 As rotas pendentes ainda **respondem os erros de validação** (`400` para payload
 incompleto, e-mail inválido ou id malformado), porque essa parte é anterior ao
@@ -103,6 +109,10 @@ acesso a dados. Mas no caminho felizes elas ficam sem resposta e o request
 pendura: o array em memória saiu e o service correspondente ainda não entrou.
 É exatamente o trabalho da próxima etapa — cada rota volta ao ar quando ganha sua
 função de service.
+
+O smoke test cobre esse mapa inteiro, incluindo as pendentes: elas aparecem numa
+seção própria, com timeout curto para não pendurar a suíte, e o resultado
+esperado ali é justamente "sem resposta".
 
 ---
 
@@ -316,9 +326,9 @@ completas e não estão aqui porque a **dor que as justifica ainda não apareceu
 Documentar o gatilho evita tanto abstração prematura quanto esquecer o motivo
 depois.
 
-**O próximo passo concreto** é fechar a migração: `createContact`,
-`updateContact`, `deleteContact` e o filtro por nome do `getAll` ganham suas
-funções em `services/contacts.ts`. Duas decisões que vêm junto:
+**O próximo passo concreto** é fechar a migração pelo lado da escrita:
+`createContact`, `updateContact` e `deleteContact` ganham suas funções em
+`services/contacts.ts`. Duas decisões que vêm junto:
 
 - a checagem de e-mail duplicado sai do código e passa a ser a constraint
   `contacts_email_key` — o banco garante melhor do que um `some()` em memória,
