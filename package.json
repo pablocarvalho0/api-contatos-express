@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --env-file=.env --import tsx --watch src/server.ts",
     "build": "tsc",
-    "test": "bash src/tests/test-rotas.sh",
+    "test": "cd api-contatos && bru run --env local --exclude-tags pendente",
+    "test:pendentes": "cd api-contatos && bru run --env local --tags pendente",
     "db:pull": "drizzle-kit introspect && mv -f src/db/drizzle/schema.ts src/db/drizzle/relations.ts src/db/",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.1",
+    "@usebruno/cli": "^4.0.0",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.23.5"
   }
