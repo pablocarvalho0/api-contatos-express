@@ -1,0 +1,39 @@
+info:
+  name: filtrar contatos por nome - sem resultado
+  type: http
+  seq: 4
+  tags:
+    - leitura
+
+http:
+  method: GET
+  url: "{{baseUrl}}/contacts?name=zzzzz"
+  params:
+    - name: name
+      value: zzzzz
+      type: query
+      description: trecho que não casa com ninguém
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.contacts
+      operator: isEmpty
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Busca sem resultado é 200, não 404
+
+  A coleção `/contacts` existe e respondeu — só não tinha nada que casasse. `404`
+  aqui significaria "esse recurso não existe", que é outra afirmação.
+
+  A régua: `404` é para **um** recurso identificado que não está lá
+  (`/contacts/:id`); listagem vazia é resposta de sucesso com lista vazia.

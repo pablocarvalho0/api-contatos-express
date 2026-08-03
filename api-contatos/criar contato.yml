@@ -1,0 +1,50 @@
+info:
+  name: criar contato [pendente]
+  type: http
+  seq: 11
+  tags:
+    - escrita
+    - pendente
+
+http:
+  method: POST
+  url: "{{baseUrl}}/contacts"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Fulano de Teste",
+        "email": "fulano@teste.com",
+        "phone": "(11) 90000-0000"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 5000
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Ainda não migrado — espere timeout
+
+  O caminho feliz do `POST` **não responde hoje**. O array em memória saiu e a
+  função de service não entrou: o handler valida o payload e simplesmente
+  termina, sem `res` e sem `next()`. O request fica pendurado — daí o `timeout`
+  de 5s nesta requisição, em vez do `0` (sem limite) das demais.
+
+  Sem assertions de propósito: não há resposta para afirmar nada sobre. Ela está
+  aqui como especificação do que vem a seguir.
+
+  Quando `createContact` ganhar seu service, o esperado passa a ser:
+
+  - `201` com o contato criado, **id gerado pelo banco** (`gen_random_uuid()`),
+    não pelo `crypto.randomUUID()` do código
+  - `409` ao repetir o mesmo e-mail, traduzido da violação de
+    `contacts_email_key` — o que exige a pasta `errors/`
+
+  Rodar duas vezes seguidas é o teste do `409`: a segunda tem que ser conflito, e
+  não um segundo contato com e-mail duplicado.

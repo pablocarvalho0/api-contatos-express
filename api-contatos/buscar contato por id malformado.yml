@@ -1,0 +1,37 @@
+info:
+  name: buscar contato por id malformado
+  type: http
+  seq: 7
+  tags:
+    - leitura
+    - caminho-triste
+
+http:
+  method: GET
+  url: "{{baseUrl}}/contacts/abc"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.error
+      operator: eq
+      value: ID inválido
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # 400: barrado antes do controller
+
+  `abc` não é UUID. O middleware `validar-id`, plugado só nas rotas com `:id`,
+  responde `400` e o controller nunca roda — nem chega a existir consulta ao
+  banco.
+
+  Compare com a requisição anterior: `400` é "você mandou errado", `404` é "o que
+  você pediu não existe". Confundir os dois é o erro mais comum de API REST.

@@ -1,0 +1,47 @@
+info:
+  name: criar contato - sem nome
+  type: http
+  seq: 9
+  tags:
+    - escrita
+    - caminho-triste
+
+http:
+  method: POST
+  url: "{{baseUrl}}/contacts"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "valido@teste.com"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.error
+      operator: eq
+      value: Nome e e-mail são obrigatórios
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Campo obrigatório faltando
+
+  Validação de presença acontece no controller, antes de qualquer acesso a dado —
+  e é por isso que esta requisição responde mesmo com a criação ainda não
+  migrada para o banco.
+
+  O `NOT NULL` da coluna também impediria o insert, mas devolver `400` com
+  mensagem clara é melhor do que deixar o banco estourar e virar `500`: a culpa
+  aqui é do cliente, e a resposta precisa dizer isso.

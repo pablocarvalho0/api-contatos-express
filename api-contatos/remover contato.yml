@@ -1,0 +1,32 @@
+info:
+  name: remover contato [pendente]
+  type: http
+  seq: 13
+  tags:
+    - escrita
+    - pendente
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/contacts/00000000-0000-4000-8000-000000000000"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 5000
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Ainda não migrado — espere timeout
+
+  Id inexistente de propósito, pelo mesmo motivo do `PUT`: rodar a coleção não
+  pode apagar contato de verdade.
+
+  Quando ganhar service, duas decisões aparecem:
+
+  - o corpo da resposta: `204` sem corpo é o padrão para "removi e não tenho nada
+    a dizer"
+  - apagar contato que está em `contact_groups`: a FK tem `ON DELETE CASCADE`,
+    então as associações vão embora junto — comportamento decidido no SQL, não no
+    código, e vale conferir que é isso mesmo que se quer

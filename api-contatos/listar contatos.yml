@@ -1,0 +1,29 @@
+info:
+  name: listar contatos
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/contacts"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // guarda o id do primeiro contato pra 'buscar contato por id' usar,
+        // em vez de deixar um uuid chumbado que só existe neste banco
+        if (res.body.contacts && res.body.contacts.length > 0) {
+          bru.setVar("contactId", res.body.contacts[0].id);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

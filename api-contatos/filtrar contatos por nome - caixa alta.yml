@@ -1,0 +1,45 @@
+info:
+  name: filtrar contatos por nome - caixa alta
+  type: http
+  seq: 3
+  tags:
+    - leitura
+
+http:
+  method: GET
+  url: "{{baseUrl}}/contacts?name=JULIANA"
+  params:
+    - name: name
+      value: JULIANA
+      type: query
+      description: mesmo trecho da requisição anterior, em caixa alta
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("caixa não altera o resultado", function() {
+          // qtdFiltro vem da requisição 'filtrar contatos por nome'
+          expect(res.body.contacts.length).to.equal(Number(bru.getVar("qtdFiltro")));
+        });
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Filtro é case-insensitive
+
+  O service usa `ilike`, a versão do `LIKE` que ignora a caixa. Esta requisição
+  prova isso comparando a contagem com a da requisição anterior.
+
+  Depende da variável `qtdFiltro`, gravada por `filtrar contatos por nome` — rode
+  a coleção na ordem (ou aquela antes desta). Sozinha, ela falha por falta da
+  variável, não por bug na API.

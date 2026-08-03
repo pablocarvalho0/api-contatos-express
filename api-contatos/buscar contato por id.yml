@@ -1,0 +1,41 @@
+info:
+  name: buscar contato por id
+  type: http
+  seq: 5
+  tags:
+    - leitura
+
+http:
+  method: GET
+  url: "{{baseUrl}}/contacts/{{contactId}}"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("devolve o contato pedido", function() {
+          expect(res.body.contact.id).to.equal(bru.getVar("contactId"));
+        });
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Buscar por id
+
+  O `contactId` **não fica escrito aqui**: a requisição `listar contatos` captura
+  o id do primeiro item da lista e grava na variável. Id chumbado só existe no
+  banco de quem escreveu a requisição — em qualquer outra máquina ele vira um
+  `404` que parece bug.
+
+  Rode `listar contatos` antes desta (ou a coleção inteira, que segue a ordem do
+  `seq`). Se preferir fixar um id à mão, preencha `contactId` no environment
+  `local`.

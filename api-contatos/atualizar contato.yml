@@ -1,0 +1,41 @@
+info:
+  name: atualizar contato [pendente]
+  type: http
+  seq: 12
+  tags:
+    - escrita
+    - pendente
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/contacts/00000000-0000-4000-8000-000000000000"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Fulano Editado"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 5000
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Ainda não migrado — espere timeout
+
+  Mesma situação do `POST`: valida o corpo e não responde.
+
+  O id aqui é **inexistente de propósito**, não `{{contactId}}`: no dia em que o
+  update funcionar, esta requisição não deve alterar dado de verdade só porque
+  alguém rodou a coleção inteira.
+
+  Há uma decisão em aberto antes de implementar: o código antigo atualizava
+  **parcialmente** (`if (name) ...`) sob o verbo `PUT`, que semanticamente
+  significa substituir o recurso. Ou vira `PATCH`, ou o `PUT` passa a exigir o
+  recurso completo. Resolver de propósito, não por acidente.

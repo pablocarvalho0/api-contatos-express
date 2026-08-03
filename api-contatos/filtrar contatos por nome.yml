@@ -1,0 +1,52 @@
+info:
+  name: filtrar contatos por nome
+  type: http
+  seq: 2
+  tags:
+    - leitura
+
+http:
+  method: GET
+  url: "{{baseUrl}}/contacts?name=juliana"
+  params:
+    - name: name
+      value: juliana
+      type: query
+      description: trecho do nome, busca parcial (ilike no service)
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // guarda a quantidade pra requisição de caixa alta comparar
+        bru.setVar("qtdFiltro", res.body.contacts.length);
+    - type: tests
+      code: |-
+        test("todo resultado casa com o filtro", function() {
+          res.body.contacts.forEach(function (c) {
+            expect(c.name.toLowerCase()).to.include("juliana");
+          });
+        });
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Filtrar por nome
+
+  Filtro é **query string na rota de listagem** (`/contacts?name=`), não caminho
+  novo: `/contacts/juliana` pertence ao `:id` e o middleware `validar-id`
+  responderia `400` antes do controller.
+
+  O teste não checa só o status — confere que **todo** item devolvido contém o
+  trecho buscado. Sem isso, um filtro quebrado que devolve a lista inteira passa
+  como se estivesse certo. Cuidado parecido vale para o termo: `ana` casa com
+  Ana, Mariana e Juliana, então não serve de prova de nada.

@@ -1,0 +1,48 @@
+info:
+  name: criar contato - email invalido
+  type: http
+  seq: 10
+  tags:
+    - escrita
+    - caminho-triste
+
+http:
+  method: POST
+  url: "{{baseUrl}}/contacts"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Teste",
+        "email": "nao-e-email"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.error
+      operator: eq
+      value: E-mail inválido
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Formato de e-mail
+
+  Quem valida é `utils/validate-email.ts`: função pura, sem `req`/`res`, do eixo
+  horizontal — qualquer camada pode reusar.
+
+  Formato é uma pergunta que o código responde sozinho. Já **unicidade** ("esse
+  e-mail já existe?") não é: quem responde é a constraint `contacts_email_key` no
+  banco. Consultar antes de inserir abre corrida entre a leitura e a escrita, em
+  que dois pedidos simultâneos passam pela checagem e um estoura no insert.

@@ -1,0 +1,45 @@
+info:
+  name: criar contato - json quebrado
+  type: http
+  seq: 8
+  tags:
+    - escrita
+    - caminho-triste
+
+http:
+  method: POST
+  url: "{{baseUrl}}/contacts"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {"name":"Teste","email":}
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "500"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # JSON inválido morre no parser
+
+  O corpo nem chega ao controller: o `express.json()` falha ao parsear, chama
+  `next(err)` e o request pula direto para o error-handler central.
+
+  **A assertion espera `500` de propósito — e isso é dívida documentada, não
+  acerto.** O error-handler atual ignora o `err` e devolve `500` genérico para
+  tudo. Corpo malformado é erro do cliente e deveria ser `400`; consertar exige a
+  pasta `errors/` (status por tipo de erro), que está no Horizonte do README.
+
+  Quando isso for arrumado, esta assertion vira `400` — e o teste falhando é o
+  lembrete de que o trabalho foi feito.

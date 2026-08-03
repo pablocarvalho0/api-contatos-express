@@ -1,0 +1,37 @@
+info:
+  name: buscar contato por id inexistente
+  type: http
+  seq: 6
+  tags:
+    - leitura
+    - caminho-triste
+
+http:
+  method: GET
+  url: "{{baseUrl}}/contacts/00000000-0000-4000-8000-000000000000"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.error
+      operator: isString
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # 404: forma certa, dado ausente
+
+  O UUID é bem formado, então passa pelo `validar-id` e chega no controller. O
+  service não acha nada e devolve `null`; quem transforma esse `null` em `404` é
+  o controller.
+
+  Esse par de responsabilidades é o motivo de o service não conhecer HTTP: ele
+  responde "achei ou não achei", e a tradução para status code fica em uma única
+  camada.
