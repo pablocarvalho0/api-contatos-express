@@ -38,7 +38,7 @@ npm run dev             # servidor em modo watch na porta 3000
 Outros comandos:
 
 ```bash
-npm run test         # smoke test das rotas (src/tests/test-rotas.sh)
+npm run test         # roda a coleção de requests (Bruno) contra o servidor no ar
 npm run build        # compila TypeScript
 npm run db:pull      # introspecta o banco e regenera schema.ts + relations.ts
 npm run db:generate  # gera migration a partir do schema
@@ -62,17 +62,36 @@ params na URL de conexão**. O driver postgres.js repassa cada um como parâmetr
 de conexão do Postgres, então algo como `?schema=public` derruba a conexão com
 `unrecognized configuration parameter`.
 
-### Sobre o smoke test
+### A coleção de requests (`api-contatos/`)
 
-Usa `curl` e `jq` e assume o servidor já rodando em outro terminal. Ele começa
-checando o `/ping` e aborta se ninguém responder — assim uma suíte inteira de
-falhas não passa por bug de código quando o problema é servidor desligado.
+Os testes de rota vivem numa coleção do [Bruno](https://usebruno.com), em
+`api-contatos/`, no formato OpenCollection — YAML legível, versionado junto do
+código, sem estado escondido em nuvem de terceiro. Cada request é um arquivo com
+o método, o corpo, as assertions e um bloco `docs` explicando o que se espera e
+por quê.
 
-O id usado no `GET /contacts/:id` **sai da própria listagem** via `jq`, em vez de
-ficar chumbado no arquivo: id fixo só existe no banco de quem escreveu o teste.
-Se a tabela estiver vazia, esse caso é pulado com aviso. Os demais (id
-malformado, JSON quebrado, e-mail inválido, uuid inexistente) valem
-independentemente dos dados.
+Antes da primeira execução, crie o environment a partir do template (o arquivo
+real é ignorado pelo git, para nenhum segredo escapar por ele):
+
+```bash
+cp api-contatos/environments/local.example.yml api-contatos/environments/local.yml
+npm run test              # só o que já está implementado — precisa do servidor no ar
+npm run test:pendentes    # as rotas de escrita: dão timeout de propósito
+```
+
+Duas decisões que valem explicação:
+
+- **Nenhum id fica chumbado.** A request `listar contatos` guarda o id do
+  primeiro contato numa variável, e `buscar contato por id` consome ela. Id fixo
+  só existe no banco de quem escreveu o teste — em qualquer outra máquina ele
+  vira um `404` que parece bug.
+- **Assertion de status não basta.** O filtro por nome confere que *todo* item
+  devolvido contém o trecho buscado. Sem isso, um filtro quebrado que devolve a
+  lista inteira passa como verde — foi exatamente o que aconteceu ao testar com
+  `?name=ana`, que casa com Ana, Mariana e Juliana.
+
+As requests estão marcadas com tags (`leitura`, `escrita`, `caminho-triste`,
+`pendente`), e é a tag `pendente` que separa os dois comandos acima.
 
 ---
 
@@ -110,9 +129,10 @@ pendura: o array em memória saiu e o service correspondente ainda não entrou.
 É exatamente o trabalho da próxima etapa — cada rota volta ao ar quando ganha sua
 função de service.
 
-O smoke test cobre esse mapa inteiro, incluindo as pendentes: elas aparecem numa
-seção própria, com timeout curto para não pendurar a suíte, e o resultado
-esperado ali é justamente "sem resposta".
+A coleção de requests cobre esse mapa inteiro. As pendentes ficam com a tag
+`pendente` e timeout curto, fora do `npm run test` — o esperado nelas é
+justamente "sem resposta", e o `docs` de cada uma descreve o contrato que deve
+valer quando ganharem seu service.
 
 ---
 
@@ -290,8 +310,10 @@ src/
 ├── routes/        # router.ts: mapa de endpoints (verbo + caminho → controller)
 ├── types/         # definições de tipo, derivadas do schema (eixo horizontal)
 ├── utils/         # funções puras: validate-email, validate-uuid
-├── tests/         # test-rotas.sh: smoke test versionado
 └── server.ts      # infra: parse, log global, error-handler, listen na porta
+
+api-contatos/      # coleção Bruno: um arquivo YAML por request, com assertions
+└── environments/  # local.example.yml versionado; o local.yml real é ignorado
 ```
 
 `utils/create-fake-data.ts` continua no repo enquanto a migração não fecha: é a
@@ -343,7 +365,7 @@ depois.
 | `repositories/` | a mesma consulta tiver mais de um consumidor, ou as queries crescerem ao ponto de a regra de negócio ficar ilegível no meio delas |
 | `errors/` | quiser status por tipo de erro em vez de `500` genérico — classes tipo `NotFoundError` e `ConflictError` com status embutido, e o handler lendo `err.status`. Vira urgente com o `409` do e-mail duplicado |
 | `config/` | a config espalhar: hoje é só `DATABASE_URL` no `.env` mais a porta fixa no `server.ts` — duas fontes já é uma a mais do que o ideal |
-| split `app.ts`/`server.ts` | quiser testar rotas sem abrir porta de rede — importar `app` puro, sem `listen` (pré-requisito pros testes de integração com Vitest, que substituiriam o smoke test em shell) |
+| split `app.ts`/`server.ts` | quiser testar rotas sem abrir porta de rede — importar `app` puro, sem `listen`. É o pré-requisito pros testes de integração com Vitest, que cobrem o que a coleção Bruno não alcança: rodar sem servidor de pé e sem depender do estado do banco |
 | rotas de `groups` | houver uso real pra associação contato↔grupo; o modelo de dados já está pronto e esperando |
 
 ---

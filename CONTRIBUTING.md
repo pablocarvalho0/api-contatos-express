@@ -241,38 +241,66 @@ query string refina a busca.
 
 ---
 
-## Passo 8 — Testar (adicionar ao smoke test)
+## Passo 8 — Testar (adicionar requests à coleção)
 
-Cristalize os casos no `src/tests/test-rotas.sh` — caminho feliz **e** tristes.
-Sempre teste os erros, não só o sucesso; é onde os bugs moram.
+Cristalize os casos na coleção Bruno, em `api-contatos/` — um arquivo YAML por
+request, caminho feliz **e** tristes. Sempre teste os erros, não só o sucesso; é
+onde os bugs moram.
 
-```bash
-echo "=== GET todas as empresas ==="
-curl -s "$BASE/empresas" | jq
+```yaml
+info:
+  name: buscar empresa por id malformado
+  type: http
+  seq: 21
+  tags:
+    - leitura
+    - caminho-triste
 
-echo "=== GET por nome (query string, não caminho) ==="
-curl -s "$BASE/empresas?name=acme" | jq
+http:
+  method: GET
+  url: "{{baseUrl}}/empresas/abc"
+  auth: inherit
 
-echo "=== POST empresa (feliz) ==="
-curl -s -w "\n→ HTTP %{http_code}\n" -X POST "$BASE/empresas" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Acme","cnpj":"12345678000190"}'
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.error
+      operator: eq
+      value: ID inválido
 
-echo "=== GET id inválido (deve dar 400) ==="
-curl -s -w "\n→ HTTP %{http_code}\n" "$BASE/empresas/abc"
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
 
-echo "=== GET id válido inexistente (deve dar 404) ==="
-curl -s -w "\n→ HTTP %{http_code}\n" "$BASE/empresas/00000000-0000-4000-8000-000000000000"
+docs: |-
+  # Por que 400 e não 404
+  Explique aqui o que se espera e o motivo.
 ```
 
-Preveja o resultado **antes** de rodar. Se o resultado surpreender, tem
+Rode com `npm run test`. Preveja o resultado **antes**; se surpreender, tem
 aprendizado ali.
 
-Com banco real, o smoke test deixou de ser autocontido: ele agora depende do que
-existe no seu Postgres. Prefira casos que não dependem de dado específico
-(listagem, id inexistente, payload inválido) e, quando precisar de um id que
-exista, saiba que aquela linha do script é local e vai falhar na máquina de
-outra pessoa. Testar de verdade contra o banco pede o split
+Quatro hábitos que valem mais que a quantidade de requests:
+
+- **Assertion que prova, não que passa.** Status `200` não diz que o filtro
+  filtrou. Para busca, um bloco `runtime.scripts` do tipo `tests` percorrendo a
+  resposta e exigindo que todo item case com o critério vale mais do que dez
+  assertions de status.
+- **Nada de id chumbado.** Capture o id com `bru.setVar` num `after-response` da
+  listagem e consuma com `{{variavel}}`. Id fixo funciona só no seu banco.
+- **Escolha o dado de teste com má-fé.** Se todo registro do banco casa com o
+  termo buscado, o teste passa mesmo com o filtro quebrado. Procure o termo que
+  recorta.
+- **Rota ainda não implementada entra com tag `pendente`.** Sem assertion (não há
+  resposta para afirmar nada) e com `timeout` curto, para não pendurar a suíte. O
+  `docs` dela vira a especificação do que falta.
+
+Duas limitações conhecidas dessa abordagem: precisa do servidor de pé e depende
+do estado do banco. Testar sem nenhuma das duas coisas pede o split
 `app.ts`/`server.ts` e Vitest — está no Horizonte.
 
 ---
@@ -305,7 +333,8 @@ relations (artefato de ferramenta) e o que escreve service, controller e rotas
 - [ ] Controller em `controllers/` — `async`, `await` em todo acesso a dado, traduz req→res
 - [ ] Rotas em `routes/router.ts` — verbo + caminho → controller; filtro é query string
 - [ ] `validar-id` plugado **só** nas rotas com `:id`, **antes** do controller
-- [ ] Casos felizes E tristes no `test-rotas.sh`, com status code
+- [ ] Casos felizes E tristes na coleção `api-contatos/`, com assertion de status
+      e, em busca/filtro, um `tests` que prove o recorte
 - [ ] Status codes semânticos: 400 (cliente errou), 404 (não existe), 409 (conflito), 201 (criado)
 - [ ] Commit pequeno, mensagem com o porquê
 
