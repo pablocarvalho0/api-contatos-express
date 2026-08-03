@@ -1,4 +1,4 @@
 import { contacts } from "../db/schema"
 
 
-export type Contact = typeof contacts.$inferSelect
+export type Contact = typeof contacts.$inferInsert
