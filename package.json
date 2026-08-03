@@ -4,7 +4,7 @@
   "description": "API REST de contatos em Express + TypeScript — projeto de estudo focado no ciclo de vida da requisição, escopo de middlewares e tratamento centralizado de erros.",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "node --env-file=.env --import tsx --watch src/server.ts",
     "build": "tsc",
     "test": "bash src/tests/test-rotas.sh"
   },
@@ -13,12 +13,16 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
+    "drizzle-orm": "^1.0.0-rc.4",
     "express": "^5.2.1",
-    "tsx": "^4.23.0",
+    "pg": "^8.22.0",
     "typescript": "^7.0.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^26.1.1"
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.3",
+    "drizzle-kit": "^1.0.0-rc.4",
+    "tsx": "^4.23.5"
   }
 }
