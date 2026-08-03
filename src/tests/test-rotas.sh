@@ -6,16 +6,19 @@ BASE="http://localhost:3000"
 echo "=== GET todos os contatos ==="
 curl -s "$BASE/contacts" | jq
 
-echo "=== POST novo contato ==="
-curl -s -X POST "$BASE/contacts" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Fulano","email":"fulano@teste.com"}' | jq
+echo "=== GET com id ==="
+curl -s "$BASE/contacts/561713e8-4d26-4905-90dc-90e079242693" | jq
+
+echo ""
+echo "########## CAMINHOS TRISTES ##########"
 
 echo "=== GET com id inválido (deve dar erro) ==="
 curl -s "$BASE/contacts/abc" | jq
 
-echo ""
-echo "########## CAMINHOS TRISTES ##########"
+echo "=== POST com JSON quebrado ==="
+curl -s -w "\n→ HTTP %{http_code}\n" -X POST "$BASE/contacts" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Teste","email":}'
 
 echo "=== POST com email inválido ==="
 curl -s -w "\n→ HTTP %{http_code}\n" -X POST "$BASE/contacts" \
@@ -27,11 +30,14 @@ curl -s -w "\n→ HTTP %{http_code}\n" -X POST "$BASE/contacts" \
   -H "Content-Type: application/json" \
   -d '{"email":"valido@teste.com"}'
 
-echo "=== POST com JSON quebrado ==="
-curl -s -w "\n→ HTTP %{http_code}\n" -X POST "$BASE/contacts" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Teste","email":}'
 
-echo "=== GET id com formato VÁLIDO mas inexistente ==="
-curl -s -w "\n→ HTTP %{http_code}\n" \
-  "$BASE/contacts/00000000-0000-4000-8000-000000000000"
+echo ""
+echo "########## CAMINHO OK NO FUTURO ##########"
+
+echo "=== POST novo contato ==="
+curl -s -X POST "$BASE/contacts" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Fulano","email":"fulano@teste.com"}' | jq
+
+
+

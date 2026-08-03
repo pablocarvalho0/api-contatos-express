@@ -1,8 +1,7 @@
 import { RequestHandler } from "express"
 import { Contact } from "../types/contact"
-import { createFakeData } from "../utils/create-fake-data"
 import { isValidEmail } from "../utils/validate-email"
-import { getAllContacts } from "../services/contacts"
+import { getAllContacts, getContactById } from "../services/contacts"
 
 // let contacts: Contact[] = createFakeData()
 
@@ -48,16 +47,16 @@ export const getAll: RequestHandler = async (req, res) => {
     // res.status(200).json({ contacts: filteredContacts })
 }
 
-export const getOne: RequestHandler = (req, res) => {
+export const getOne: RequestHandler = async (req, res) => {
     const { id } = req.params
 
-    // const contact = contacts.find(item => item.id === id)
-    // if (!contact) {
-    //     res.status(404).json({ error: 'Contato não encontrado' })
-    //     return
-    // }
+    const contact = await getContactById(id as string)
+    if (!contact) {
+        res.status(404).json({ error: 'Contato não encontrado' })
+        return
+    }
 
-    // res.status(200).json({ contact })
+    res.status(200).json({ contact })
 }
 
 export const updateContact: RequestHandler = (req, res) => {
