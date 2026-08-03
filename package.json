@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "node --env-file=.env --import tsx --watch src/server.ts",
     "build": "tsc",
-    "test": "bash src/tests/test-rotas.sh"
+    "test": "bash src/tests/test-rotas.sh",
+    "db:pull": "drizzle-kit introspect && mv -f src/db/drizzle/schema.ts src/db/drizzle/relations.ts src/db/",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "keywords": [],
   "author": "Pablo Carvalho <pablocnsantos@gmail.com>",
