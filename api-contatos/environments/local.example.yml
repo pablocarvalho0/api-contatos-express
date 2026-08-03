@@ -1,0 +1,8 @@
+name: local
+variables:
+  - name: baseUrl
+    value: http://localhost:3000
+    description: ""
+  - name: contactId
+    value: ""
+    description: "preenchido em runtime por 'listar contatos'; fixe um id aqui só se quiser rodar 'buscar contato por id' isolada"
