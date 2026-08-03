@@ -1,6 +1,4 @@
-export type Contact = {
-    id: string;
-    name: string;
-    email: string;
-    phone?: string;
-}
+import { contacts } from "../db/schema"
+
+
+export type Contact = typeof contacts.$inferSelect
