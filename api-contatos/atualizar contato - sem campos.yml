@@ -1,0 +1,54 @@
+info:
+  name: atualizar contato - sem campos
+  type: http
+  seq: 14
+  tags:
+    - escrita
+    - caminho-triste
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/contacts/{{novoContatoId}}"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {}
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.error
+      operator: eq
+      value: Nenhum campo para atualizar
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Corpo vazio é erro do cliente, não no-op
+
+  JSON válido, id existente, e ainda assim `400`. Sem nenhum campo conhecido não
+  há o que atualizar, e o controller barra antes de chegar ao banco.
+
+  Deixar passar sairia caro: `db.update(...).set({})` com objeto vazio é `UPDATE`
+  sem `SET`, que o Postgres rejeita como erro de sintaxe — o request viraria
+  `500`, dizendo "erro do servidor" para um pedido malformado do cliente.
+
+  O mesmo `400` vale para requisição sem corpo nenhum: `express.json()` não
+  popula `req.body`, e a primeira checagem do controller responde "Sem corpo da
+  requisição".
+
+  Vale notar a **ordem das checagens**: o controller valida o corpo antes de
+  perguntar se o id existe. Um `{}` mandado para um id inexistente devolve `400`,
+  não `404` — o pedido é rejeitado por estar malformado, antes de virar consulta.
+  Barrar cedo evita ida ao banco para uma requisição que não teria efeito de
+  qualquer jeito.

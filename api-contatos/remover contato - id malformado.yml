@@ -1,0 +1,41 @@
+info:
+  name: remover contato - id malformado
+  type: http
+  seq: 20
+  tags:
+    - escrita
+    - caminho-triste
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/contacts/abc"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.error
+      operator: eq
+      value: ID inválido
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Terceira rota com `:id`, terceira checagem do middleware
+
+  Mesmo motivo do caso equivalente no `PUT`: `validar-id` é ligado rota a rota, e
+  só um teste por rota garante que nenhuma ficou de fora.
+
+  Aqui a checagem pesa mais do que nas outras duas. `GET` e `PUT` sem o middleware
+  devolveriam um `500` feio; um `DELETE` que chega ao banco com id não validado é
+  uma operação destrutiva rodando com entrada que ninguém conferiu.
+
+  Neste código o estrago pararia no cast de uuid do Postgres. Mas a barreira que
+  se quer é anterior a isso: **id inválido não chega perto do banco**, e a rota
+  mais perigosa é a que menos pode depender da sorte.

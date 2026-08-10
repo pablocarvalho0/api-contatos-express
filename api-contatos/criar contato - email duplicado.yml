@@ -1,0 +1,61 @@
+info:
+  name: criar contato - email duplicado
+  type: http
+  seq: 12
+  tags:
+    - escrita
+    - caminho-triste
+
+http:
+  method: POST
+  url: "{{baseUrl}}/contacts"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Outro Fulano",
+        "email": "{{emailNovo}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.error
+      operator: eq
+      value: E-mail já cadastrado
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # Conflito, não erro de formato
+
+  Mesmo `emailNovo` que a requisição anterior acabou de gravar — por isso esta
+  depende de `criar contato` ter rodado antes (a coleção segue a ordem do `seq`).
+
+  `409` e não `400`: o payload está impecável, o problema é o **estado atual do
+  recurso**. Cliente nenhum consegue arrumar isso corrigindo o corpo; ele precisa
+  de outro e-mail. Status code é contrato — quem consome decide o que fazer com
+  base nele, e `400` mandaria a mensagem errada.
+
+  ## Dívida: quem responde a unicidade
+
+  O controller consulta `emailExist` antes de inserir. Entre a leitura e a
+  escrita cabe outra requisição: dois pedidos simultâneos com o mesmo e-mail
+  passam os dois pela checagem, e um estoura na constraint — virando `500`
+  genérico no error-handler, não `409`.
+
+  A resposta definitiva é deixar o banco falar (é ele que garante a unicidade de
+  verdade) e traduzir a violação de `contacts_email_key` em `409`. Isso pede a
+  pasta `errors/`, que está no Horizonte do README. A checagem prévia continua
+  útil como atalho para o caso comum; ela só não pode ser a única linha de
+  defesa.

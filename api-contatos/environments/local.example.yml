@@ -3,6 +3,15 @@ variables:
   - name: baseUrl
     value: http://localhost:3000
     description: ""
+  # As três abaixo ficam vazias de propósito: são preenchidas em runtime, por
+  # scripts das próprias requests, para não chumbar id nem e-mail que só existem
+  # num banco. Estão listadas aqui só para documentar quem grava e quem consome.
   - name: contactId
     value: ""
-    description: "preenchido em runtime por 'listar contatos'; fixe um id aqui só se quiser rodar 'buscar contato por id' isolada"
+    description: "gravada por 'listar contatos' (after-response); consumida por 'buscar contato por id'. Fixe um id aqui só se quiser rodar essa request isolada"
+  - name: emailNovo
+    value: ""
+    description: "gravada por 'criar contato' (before-request, com Date.now() para não repetir entre execuções); consumida pelas requests de e-mail duplicado no POST e no PUT"
+  - name: novoContatoId
+    value: ""
+    description: "gravada por 'criar contato' (after-response); consumida por todo o ciclo de escrita — atualizar, remover e remover de novo"

@@ -1,0 +1,61 @@
+info:
+  name: atualizar contato - email de outro contato
+  type: http
+  seq: 15
+  tags:
+    - escrita
+    - caminho-triste
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/contacts/{{novoContatoId}}"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{emailNovo}}"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "409"
+    - expression: res.body.error
+      operator: eq
+      value: E-mail já cadastrado
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # A trava de e-mail duplicado também vale no update
+
+  Mesma regra do `POST`: e-mail já cadastrado responde `409`, não `400`.
+
+  ## Dívida: o contato conflita consigo mesmo
+
+  Repare no corpo — `{{emailNovo}}` é o e-mail **deste próprio contato**. Reenviar
+  o valor que já está gravado devolve `409`, o que está errado: ninguém está
+  tomando o e-mail de ninguém.
+
+  A causa é o controller perguntar "existe alguém com este e-mail?" sem excluir o
+  contato que está sendo editado. O `emailExist` acha a própria linha e chama de
+  conflito.
+
+  Na prática isso quebra um cliente comum: um formulário de edição que reenvia o
+  registro inteiro (nome, e-mail e telefone) trava, mesmo sem ter mexido no
+  e-mail. O conserto é comparar o id do dono do e-mail com o id da rota, ou
+  deixar a constraint do banco decidir e traduzir a violação — mesmo caminho da
+  pasta `errors/` que está no Horizonte.
+
+  **A assertion espera `409` porque é o que a API faz hoje.** Quando o bug for
+  corrigido, o esperado passa a ser `200`, e este teste falhando é o aviso de que
+  chegou a hora de atualizá-lo.

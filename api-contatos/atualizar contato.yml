@@ -1,14 +1,13 @@
 info:
-  name: atualizar contato [pendente]
+  name: atualizar contato
   type: http
-  seq: 12
+  seq: 13
   tags:
     - escrita
-    - pendente
 
 http:
   method: PUT
-  url: "{{baseUrl}}/contacts/00000000-0000-4000-8000-000000000000"
+  url: "{{baseUrl}}/contacts/{{novoContatoId}}"
   headers:
     - name: Content-Type
       value: application/json
@@ -20,22 +19,57 @@ http:
       }
   auth: inherit
 
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("altera o campo enviado", function() {
+          expect(res.body.contact.name).to.equal("Fulano Editado");
+        });
+        test("preserva os campos que não foram enviados", function() {
+          // o corpo só mandou `name`; e-mail e telefone têm que continuar de pé
+          expect(res.body.contact.email).to.equal(bru.getVar("emailNovo"));
+          expect(res.body.contact.phone).to.equal("(11) 90000-0000");
+        });
+        test("atualiza o contato certo", function() {
+          expect(res.body.contact.id).to.equal(bru.getVar("novoContatoId"));
+        });
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
 settings:
   encodeUrl: true
-  timeout: 5000
+  timeout: 0
   followRedirects: true
   maxRedirects: 5
 
 docs: |-
-  # Ainda não migrado — espere timeout
+  # Atualiza o contato criado nesta rodada
 
-  Mesma situação do `POST`: valida o corpo e não responde.
+  O id vem de `novoContatoId`, capturado por `criar contato`. Não é `{{contactId}}`
+  (o primeiro da listagem) de propósito: **rodar a coleção não pode editar dado de
+  verdade de ninguém**. A escrita só toca o contato que ela mesma criou.
 
-  O id aqui é **inexistente de propósito**, não `{{contactId}}`: no dia em que o
-  update funcionar, esta requisição não deve alterar dado de verdade só porque
-  alguém rodou a coleção inteira.
+  ## O teste que mais importa aqui é o segundo
 
-  Há uma decisão em aberto antes de implementar: o código antigo atualizava
-  **parcialmente** (`if (name) ...`) sob o verbo `PUT`, que semanticamente
-  significa substituir o recurso. Ou vira `PATCH`, ou o `PUT` passa a exigir o
-  recurso completo. Resolver de propósito, não por acidente.
+  Status `200` e `name` novo passariam mesmo num update que apagasse todo o resto
+  da linha. Por isso o teste confere que e-mail e telefone continuam lá: é a
+  prova de que o `set` recebeu só o campo enviado, e não o objeto inteiro com
+  `undefined` nos ausentes.
+
+  Isso funciona porque o controller monta o `updates` campo a campo, checando
+  `!== undefined` em vez de checar valor-verdade. A diferença aparece no dia em
+  que alguém mandar `"phone": ""` ou `"active": false`: com `if (phone)` o campo
+  seria silenciosamente ignorado; com `!== undefined` ele é gravado como veio.
+
+  ## Dívida: isto é `PATCH` com nome de `PUT`
+
+  `PUT` significa **substituir o recurso** — mandar só `name` deveria zerar os
+  outros campos. O comportamento implementado é o de `PATCH`: atualização
+  parcial, exatamente o que o teste acima exige.
+
+  As duas saídas honestas são renomear o verbo para `PATCH` ou fazer o `PUT`
+  exigir o recurso completo. Enquanto não se decide, fica registrado que a
+  divergência é conhecida, não acidente.

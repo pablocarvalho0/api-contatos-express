@@ -1,0 +1,52 @@
+info:
+  name: atualizar contato - id malformado
+  type: http
+  seq: 17
+  tags:
+    - escrita
+    - caminho-triste
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/contacts/abc"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Ninguém"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "400"
+    - expression: res.body.error
+      operator: eq
+      value: ID inválido
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # O middleware está plugado nesta rota?
+
+  Este caso já existe para o `GET`, e a repetição é proposital: `validar-id` é
+  ligado **rota a rota** em `routes/router.ts`. Esquecer o middleware em uma das
+  três rotas com `:id` é um erro que nenhum teste das outras duas pega.
+
+  A resposta é `400` e não `404` porque `abc` não é a identificação de um recurso
+  ausente — não é identificação de coisa nenhuma. O pedido está malformado, e a
+  distinção importa: `404` diria ao cliente "esse contato não existe", sugerindo
+  que o id estava certo.
+
+  Sem o middleware, a string chegaria ao `WHERE id = 'abc'` e o Postgres
+  estouraria com erro de cast de uuid — `500`, culpando o servidor por um id que
+  o cliente digitou errado.

@@ -1,0 +1,51 @@
+info:
+  name: atualizar contato - id inexistente
+  type: http
+  seq: 16
+  tags:
+    - escrita
+    - caminho-triste
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/contacts/00000000-0000-4000-8000-000000000000"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Ninguém"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.error
+      operator: eq
+      value: Contato não encontrado
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # UUID bem formado, contato ausente
+
+  Id válido na forma, então passa pelo `validar-id` e chega ao controller. O
+  `idExist` não acha nada e a resposta é `404`.
+
+  Sem essa checagem, o `UPDATE` rodaria com `WHERE id = ...` sem casar nenhuma
+  linha: o banco não reclama disso — atualizar zero linhas é sucesso em SQL. O
+  `returning()` voltaria vazio, o service devolveria `null` e o cliente receberia
+  `200` com `"contact": null`, como se tivesse dado certo.
+
+  O `404` explícito é o que impede esse falso positivo. Mesmo raciocínio do
+  `DELETE`, que chega ao mesmo lugar por outro caminho: lá o próprio
+  `returning()` vazio é o sinal de "não existia".

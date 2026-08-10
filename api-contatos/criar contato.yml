@@ -1,10 +1,9 @@
 info:
-  name: criar contato [pendente]
+  name: criar contato
   type: http
   seq: 11
   tags:
     - escrita
-    - pendente
 
 http:
   method: POST
@@ -17,34 +16,70 @@ http:
     data: |-
       {
         "name": "Fulano de Teste",
-        "email": "fulano@teste.com",
+        "email": "{{emailNovo}}",
         "phone": "(11) 90000-0000"
       }
   auth: inherit
 
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        // e-mail único por execução: a coluna tem UNIQUE, então um valor fixo
+        // faria a segunda rodada da coleção bater em 409 no caminho feliz
+        bru.setVar("emailNovo", "contato-teste-" + Date.now() + "@exemplo.com");
+    - type: after-response
+      code: |-
+        // guarda o id pro resto do ciclo (atualizar e remover) usar.
+        // o [0] não é engano: este endpoint devolve array — ver docs
+        bru.setVar("novoContatoId", res.body.contact[0].id);
+    - type: tests
+      code: |-
+        test("devolve o contato criado com id gerado pelo banco", function() {
+          expect(res.body.contact[0].email).to.equal(bru.getVar("emailNovo"));
+          expect(res.body.contact[0].id).to.be.a("string");
+        });
+        test("aplica os defaults da tabela", function() {
+          expect(res.body.contact[0].active).to.equal(true);
+        });
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "201"
+
 settings:
   encodeUrl: true
-  timeout: 5000
+  timeout: 0
   followRedirects: true
   maxRedirects: 5
 
 docs: |-
-  # Ainda não migrado — espere timeout
+  # Início do ciclo de escrita
 
-  O caminho feliz do `POST` **não responde hoje**. O array em memória saiu e a
-  função de service não entrou: o handler valida o payload e simplesmente
-  termina, sem `res` e sem `next()`. O request fica pendurado — daí o `timeout`
-  de 5s nesta requisição, em vez do `0` (sem limite) das demais.
+  Esta requisição abre a sequência `criar → atualizar → remover`, que termina
+  apagando o que criou. É o que deixa a coleção **repetível**: rodar duas vezes
+  seguidas não acumula lixo no banco nem quebra na segunda.
 
-  Sem assertions de propósito: não há resposta para afirmar nada sobre. Ela está
-  aqui como especificação do que vem a seguir.
+  Duas decisões sustentam isso:
 
-  Quando `createContact` ganhar seu service, o esperado passa a ser:
+  - **E-mail gerado em runtime**, num `before-request`. `contacts_email_key` é
+    `UNIQUE`; com e-mail chumbado, a primeira rodada passa e a segunda devolve
+    `409` — falha do teste, não da API.
+  - **O id vem do banco**, via `gen_random_uuid()` na coluna, não de um
+    `crypto.randomUUID()` no código. O `after-response` captura esse id em
+    `novoContatoId`, mesma ideia do id capturado em `listar contatos`.
 
-  - `201` com o contato criado, **id gerado pelo banco** (`gen_random_uuid()`),
-    não pelo `crypto.randomUUID()` do código
-  - `409` ao repetir o mesmo e-mail, traduzido da violação de
-    `contacts_email_key` — o que exige a pasta `errors/`
+  O teste confere os defaults da tabela (`active`) porque eles não estão no
+  payload: se aparecerem na resposta, é prova de que o `returning()` traz a linha
+  como o banco a gravou, não o objeto que o controller montou.
 
-  Rodar duas vezes seguidas é o teste do `409`: a segunda tem que ser conflito, e
-  não um segundo contato com e-mail duplicado.
+  ## Dívida: o corpo aqui é array, nas outras rotas é objeto
+
+  Repare no `[0]`. `createContact` faz `db.insert(...).returning()` e devolve a
+  lista inteira, então a resposta é `{ "contact": [ {...} ] }` — enquanto `GET`,
+  `PUT` e `DELETE` devolvem `{ "contact": {...} }`.
+
+  Quem consome a API precisa lembrar de qual verbo devolve o quê, e isso é ruído.
+  O conserto é um `[0]` no service, como os outros já fazem. As assertions estão
+  escritas contra o comportamento real de hoje: no dia da correção elas quebram,
+  e a quebra é o lembrete.

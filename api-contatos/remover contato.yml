@@ -1,32 +1,60 @@
 info:
-  name: remover contato [pendente]
+  name: remover contato
   type: http
-  seq: 13
+  seq: 18
   tags:
     - escrita
-    - pendente
 
 http:
   method: DELETE
-  url: "{{baseUrl}}/contacts/00000000-0000-4000-8000-000000000000"
+  url: "{{baseUrl}}/contacts/{{novoContatoId}}"
   auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("devolve o contato removido", function() {
+          expect(res.body.contact.id).to.equal(bru.getVar("novoContatoId"));
+          expect(res.body.contact.name).to.equal("Fulano Editado");
+        });
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
 
 settings:
   encodeUrl: true
-  timeout: 5000
+  timeout: 0
   followRedirects: true
   maxRedirects: 5
 
 docs: |-
-  # Ainda não migrado — espere timeout
+  # Fecha o ciclo e limpa o banco
 
-  Id inexistente de propósito, pelo mesmo motivo do `PUT`: rodar a coleção não
-  pode apagar contato de verdade.
+  Remove o contato criado em `criar contato` e editado em `atualizar contato` —
+  por isso o teste confere o nome `Fulano Editado`: ele prova, de quebra, que o
+  update anterior persistiu de verdade e não só devolveu um corpo bonito.
 
-  Quando ganhar service, duas decisões aparecem:
+  É esta requisição que deixa a coleção repetível. Sem ela, cada `npm run test`
+  deixaria um contato órfão no banco.
 
-  - o corpo da resposta: `204` sem corpo é o padrão para "removi e não tenho nada
-    a dizer"
-  - apagar contato que está em `contact_groups`: a FK tem `ON DELETE CASCADE`,
-    então as associações vão embora junto — comportamento decidido no SQL, não no
-    código, e vale conferir que é isso mesmo que se quer
+  ## Por que `200` com corpo, e não `204`
+
+  `204 No Content` é o padrão mais comum para remoção, e seria defensável aqui. A
+  escolha foi devolver `200` com o contato apagado no corpo, porque essa é a
+  última chance de o cliente ver o que se perdeu — útil para log, para uma tela
+  de confirmação ou para um "desfazer" que precise dos dados de volta.
+
+  O custo é que o cliente não pode assumir corpo vazio. Escolha consciente, não
+  descuido.
+
+  ## O que vai junto
+
+  A FK de `contact_groups` tem `ON DELETE CASCADE`: apagar o contato apaga as
+  associações dele com grupos. O comportamento está decidido **no SQL**, não no
+  código — não há linha em `services/contacts.ts` que trate disso, e quem lê só o
+  TypeScript não vê o efeito acontecendo.
+
+  É o certo aqui (associação sem contato não significa nada), mas registrar onde
+  a regra mora evita a surpresa de amanhã.

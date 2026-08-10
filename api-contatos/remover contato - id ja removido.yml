@@ -1,0 +1,47 @@
+info:
+  name: remover contato - id ja removido
+  type: http
+  seq: 19
+  tags:
+    - escrita
+    - caminho-triste
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/contacts/{{novoContatoId}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "404"
+    - expression: res.body.error
+      operator: eq
+      value: Contato não encontrado
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # O mesmo id de novo — e é esse o teste
+
+  Repete o `DELETE` da requisição anterior, com o **mesmo** `novoContatoId`. O
+  `404` aqui é a única prova de que a remoção aconteceu de verdade no banco: o
+  `200` anterior mostrava só o que o servidor disse ter feito.
+
+  Um id inexistente qualquer (aquele `00000000-...` das outras requisições) também
+  devolveria `404`, mas não provaria nada sobre a remoção — passaria igual mesmo
+  se o `DELETE` não tivesse apagado linha nenhuma.
+
+  ## Onde nasce o `404`
+
+  Diferente do `PUT`, o controller não pergunta antes se o contato existe. O
+  `DELETE` já roda com `returning()`: apagar zero linhas devolve lista vazia, o
+  service traduz isso em `null` e o controller vira `404`.
+
+  Uma ida ao banco em vez de duas, e sem janela entre o "existe?" e o "apaga" —
+  o próprio `DELETE` responde as duas perguntas de uma vez.
