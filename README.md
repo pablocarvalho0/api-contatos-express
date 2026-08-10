@@ -5,11 +5,11 @@ modelo mental do Express (ciclo de vida de uma requisição, escopo de middlewar
 tratamento centralizado de erros) e, agora, a integração com Postgres via
 **Drizzle ORM**.
 
-O projeto está **no meio da migração do fake-backend em memória para o banco
-real**. As rotas de leitura já leem do Postgres através da camada de `services/`;
-as de escrita são o próximo passo. Esse estado intermediário está documentado
-rota por rota em [Estado da migração](#estado-da-migração) em vez de escondido —
-saber o que já funciona e o que não é parte do valor do repo.
+O CRUD completo já roda contra o Postgres, leitura e escrita, através da camada
+de `services/`. O que sobrou de divergente entre o que a API faz e o que ela
+deveria fazer está listado em [Dívidas conhecidas](#dívidas-conhecidas), com o
+teste que exercita cada uma — saber o que ainda não está certo é parte do valor
+do repo.
 
 O objetivo aqui não é a API em si, e sim a arquitetura: cada decisão de estrutura
 está documentada com o *porquê*, incluindo o que deliberadamente **não** foi
@@ -30,10 +30,26 @@ O banco agora é obrigatório: a API abre a conexão no boot.
 
 ```bash
 npm install
-cp .env.example .env    # DATABASE_URL já aponta pro Postgres do compose
-docker compose up -d    # Postgres 16 em localhost:12345
-npm run dev             # servidor em modo watch na porta 3000
+cp .env.example .env         # DATABASE_URL já aponta pro Postgres do compose
+docker compose up -d --wait  # Postgres 16 em localhost:12345, já com o schema
+npm run db:seed              # massa de teste: 20 contatos, 4 grupos, 10 vínculos
+npm run dev                  # servidor em modo watch na porta 3000
 ```
+
+Numa máquina limpa isso basta: `src/db/init.sql` é montado em
+`/docker-entrypoint-initdb.d/`, e a imagem do Postgres roda esse DDL na criação
+do volume — o banco sobe com as três tabelas prontas. O `--wait` segura o
+comando até o healthcheck passar; sem ele o compose devolve o terminal antes de
+o init terminar, e o `db:seed` da linha seguinte encontra um banco pela metade.
+
+Para voltar ao estado inicial a qualquer momento:
+
+```bash
+docker compose down -v && docker compose up -d --wait && npm run db:seed
+```
+
+O `-v` apaga o volume, e é justamente isso que faz o `init.sql` rodar de novo:
+em volume que já existe, o entrypoint do Postgres ignora a pasta de init.
 
 Outros comandos:
 
@@ -43,7 +59,14 @@ npm run build        # compila TypeScript
 npm run db:pull      # introspecta o banco e regenera schema.ts + relations.ts
 npm run db:generate  # gera migration a partir do schema
 npm run db:migrate   # aplica as migrations pendentes
+npm run db:seed      # apaga tudo e recria a massa de teste (20 contatos, 4 grupos)
 ```
+
+O seed é destrutivo e idempotente: rodar duas vezes produz o mesmo banco, com os
+mesmos ids. Ele existe porque a coleção Bruno escreve — cada execução de
+`npm run test` deixa um contato criado para trás —, e assertions que dependem de
+contagem (`?name=juliana` devolve 4) só valem contra uma massa conhecida.
+Rodar o seed antes dos testes devolve o banco ao ponto de partida.
 
 ### Variáveis de ambiente
 
@@ -75,11 +98,10 @@ real é ignorado pelo git, para nenhum segredo escapar por ele):
 
 ```bash
 cp api-contatos/environments/local.example.yml api-contatos/environments/local.yml
-npm run test              # só o que já está implementado — precisa do servidor no ar
-npm run test:pendentes    # as rotas de escrita: dão timeout de propósito
+npm run test              # roda a coleção inteira — precisa do servidor no ar
 ```
 
-Duas decisões que valem explicação:
+Três decisões que valem explicação:
 
 - **Nenhum id fica chumbado.** A request `listar contatos` guarda o id do
   primeiro contato numa variável, e `buscar contato por id` consome ela. Id fixo
@@ -89,9 +111,14 @@ Duas decisões que valem explicação:
   devolvido contém o trecho buscado. Sem isso, um filtro quebrado que devolve a
   lista inteira passa como verde — foi exatamente o que aconteceu ao testar com
   `?name=ana`, que casa com Ana, Mariana e Juliana.
+- **A escrita limpa o que sujou.** As requests de `POST`, `PUT` e `DELETE` formam
+  um ciclo: criam um contato com e-mail gerado em runtime, editam esse contato e
+  o removem no fim. Rodar a coleção duas vezes seguidas dá verde nas duas, sem
+  acumular lixo no banco e sem esbarrar no `UNIQUE` do e-mail. E nenhuma escrita
+  toca dado que ela mesma não criou.
 
-As requests estão marcadas com tags (`leitura`, `escrita`, `caminho-triste`,
-`pendente`), e é a tag `pendente` que separa os dois comandos acima.
+As requests estão marcadas com tags (`leitura`, `escrita`, `caminho-triste`) para
+rodar recortes com `bru run --tags`.
 
 ---
 
@@ -109,30 +136,43 @@ As requests estão marcadas com tags (`leitura`, `escrita`, `caminho-triste`,
 
 Rotas com `:id` passam pelo middleware `validar-id` antes do controller.
 
-### Estado da migração
+### Status codes por caso
 
-| Rota | Estado |
-|------|--------|
-| `GET /contacts` | ✅ lê do Postgres (`getAllContacts`) |
-| `GET /contacts/:id` | ✅ lê do Postgres (`getContactById`) |
-| `GET /contacts?name=` | ✅ lê do Postgres (`getContactByName`, busca parcial com `ilike`) |
-| `POST /contacts` | ⏳ validação de payload já roda; persistência pendente |
-| `PUT /contacts/:id` | ⏳ pendente |
-| `DELETE /contacts/:id` | ⏳ pendente |
+| Situação | Status |
+|----------|--------|
+| Contato criado | `201` |
+| Leitura, atualização e remoção com sucesso | `200` |
+| Payload incompleto, e-mail malformado ou id fora do formato UUID | `400` |
+| UUID bem formado, contato inexistente | `404` |
+| E-mail já cadastrado | `409` |
 
-Ou seja: **a leitura toda já está no banco; falta a escrita.**
+A regra que organiza a tabela: `400` é "você errou o pedido", `404` é "o pedido
+está certo, o recurso não existe", `409` é "o pedido está certo e o recurso
+existe demais". Quem consome a API decide o que fazer com base no status, então
+ele é contrato — não decoração.
 
-As rotas pendentes ainda **respondem os erros de validação** (`400` para payload
-incompleto, e-mail inválido ou id malformado), porque essa parte é anterior ao
-acesso a dados. Mas no caminho felizes elas ficam sem resposta e o request
-pendura: o array em memória saiu e o service correspondente ainda não entrou.
-É exatamente o trabalho da próxima etapa — cada rota volta ao ar quando ganha sua
-função de service.
+O ciclo inteiro está coberto pela coleção Bruno, caso feliz e casos tristes, e as
+20 requests passam contra o banco.
 
-A coleção de requests cobre esse mapa inteiro. As pendentes ficam com a tag
-`pendente` e timeout curto, fora do `npm run test` — o esperado nelas é
-justamente "sem resposta", e o `docs` de cada uma descreve o contrato que deve
-valer quando ganharem seu service.
+### Dívidas conhecidas
+
+Três divergências estão documentadas no `docs` das requests que as exercitam, com
+a assertion escrita contra o comportamento **real** de hoje. Quando cada uma for
+corrigida, o teste quebra — e a quebra é o lembrete de que o trabalho foi feito:
+
+- **`POST /contacts` devolve `contact` como array**, enquanto os outros verbos
+  devolvem objeto (`db.insert().returning()` sem o `[0]` que os demais services
+  aplicam).
+- **`PUT` faz atualização parcial**, que é a semântica de `PATCH`. Ou o verbo
+  muda, ou o `PUT` passa a exigir o recurso completo.
+- **Reenviar o próprio e-mail no `PUT` devolve `409`.** A checagem de unicidade
+  não exclui o contato que está sendo editado, então ele conflita consigo mesmo —
+  o que trava qualquer formulário de edição que reenvie o registro inteiro.
+
+Some-se a isso o `500` genérico do error-handler para corpo JSON malformado, que
+deveria ser `400`. Todas apontam para o mesmo conserto de fundo: a pasta
+`errors/` do [Horizonte](#horizonte-o-que-ainda-não-existe--e-por-quê), que
+traduz tipo de erro em status code num lugar só.
 
 ---
 
@@ -147,8 +187,12 @@ O motivo é de estudo: escrever o DDL na mão obriga a pensar em constraint,
 uma API fluente. O trade-off é conhecido: a fonte da verdade é o banco, então
 mudança de estrutura começa lá e volta pro código via `db:pull`.
 
-Três arquivos, três papéis:
+Quatro arquivos, quatro papéis:
 
+- **`db/init.sql`** — o DDL. É a fonte da verdade do schema e o único lugar onde
+  ele existe fora do banco: o compose monta este arquivo na pasta de init do
+  Postgres, então volume novo já nasce com as tabelas. Mudança de estrutura
+  começa aqui e volta pro código via `db:pull`.
 - **`db/schema.ts`** — as tabelas, geradas pela introspecção. Não editar à mão:
   o `db:pull` sobrescreve.
 - **`db/relations.ts`** — as relações entre elas, também geradas. Ficam separadas
@@ -180,6 +224,12 @@ comentário. Não é bug: quando a migration é gerada *a partir de uma introspe
 ela descreve tabelas que **já existem**. Rodar como está recriaria tudo e
 quebraria. Ela serve como retrato inicial do schema — o ponto de partida para as
 próximas migrations, essas sim geradas por diferença e aplicáveis.
+
+A consequência prática só aparece na primeira máquina limpa: como o DDL está
+comentado, `npm run db:migrate` não cria tabela nenhuma. Foi o que motivou o
+`init.sql` — antes dele, o schema só existia *dentro* do volume do Postgres, e
+volume não é backup. Um `docker compose down -v` levava o banco embora sem
+deixar no repo nada capaz de recriá-lo.
 
 ### O schema é maior que a API
 
@@ -316,9 +366,8 @@ api-contatos/      # coleção Bruno: um arquivo YAML por request, com assertion
 └── environments/  # local.example.yml versionado; o local.yml real é ignorado
 ```
 
-`utils/create-fake-data.ts` continua no repo enquanto a migração não fecha: é a
-referência do formato que as rotas devolviam antes. Sai quando a última rota
-estiver no banco.
+Não há mais utilitário de dado falso: ele saiu junto com a última rota que
+passou a escrever no banco.
 
 ---
 
@@ -348,17 +397,17 @@ completas e não estão aqui porque a **dor que as justifica ainda não apareceu
 Documentar o gatilho evita tanto abstração prematura quanto esquecer o motivo
 depois.
 
-**O próximo passo concreto** é fechar a migração pelo lado da escrita:
-`createContact`, `updateContact` e `deleteContact` ganham suas funções em
-`services/contacts.ts`. Duas decisões que vêm junto:
+**O próximo passo concreto** é quitar as [dívidas conhecidas](#dívidas-conhecidas),
+e a que puxa as outras é a pasta `errors/`:
 
-- a checagem de e-mail duplicado sai do código e passa a ser a constraint
-  `contacts_email_key` — o banco garante melhor do que um `some()` em memória,
-  que ainda por cima tem corrida entre a leitura e a escrita. Em troca, o `409`
-  agora depende de traduzir o erro do Postgres.
-- `PUT` precisa decidir entre substituir e atualizar parcialmente. O código
-  antigo fazia parcial (`if (name) ...`) sob o verbo de substituição — divergência
-  a resolver de propósito, não por acidente.
+- a checagem de e-mail duplicado hoje mora no controller, que consulta antes de
+  escrever. Entre a leitura e a escrita cabe outra requisição, e aí quem barra é
+  a constraint `contacts_email_key` — mas a violação chega ao handler como `500`
+  genérico. Deixar o banco decidir exige traduzir o erro do Postgres em `409`.
+- essa mesma checagem não exclui o contato que está sendo editado, então um `PUT`
+  que reenvia o próprio e-mail conflita consigo mesmo.
+- `PUT` continua fazendo atualização parcial sob o verbo de substituição —
+  divergência conhecida, a resolver de propósito e não por acidente.
 
 | Pasta | Nasce quando |
 |-------|--------------|

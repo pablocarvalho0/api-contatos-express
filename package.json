@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "node --env-file=.env --import tsx --watch src/server.ts",
     "build": "tsc",
-    "test": "cd api-contatos && bru run --env local --exclude-tags pendente",
-    "test:pendentes": "cd api-contatos && bru run --env local --tags pendente",
+    "test": "cd api-contatos && bru run --env local",
     "db:pull": "drizzle-kit introspect && mv -f src/db/drizzle/schema.ts src/db/drizzle/relations.ts src/db/",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "node --env-file=.env --import tsx src/db/seed.ts"
   },
   "keywords": [],
   "author": "Pablo Carvalho <pablocnsantos@gmail.com>",

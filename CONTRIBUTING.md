@@ -32,8 +32,17 @@ plugado na rota (não no recurso — é decisão de escopo, ver passo 6).
 ## Passo 1 — Criar a tabela no banco
 
 O projeto é **database-first**: a estrutura nasce em SQL, escrito à mão, e o
-TypeScript é derivado dela depois. Então o primeiro movimento é conectar no
-Postgres do Compose e criar a tabela.
+TypeScript é derivado dela depois. Então o primeiro movimento é escrever o DDL.
+
+Ele vai em **`src/db/init.sql`**, e não só no `psql`. Esse arquivo é a única
+cópia do schema fora do volume do Postgres — é o que a imagem executa quando o
+volume é criado, e o que faz uma máquina limpa subir com o banco pronto. Tabela
+que existe só no seu banco local desaparece no primeiro `docker compose down -v`
+e quebra o setup de quem clonar o repo.
+
+Como o init só roda em volume novo, aplique a mudança nas duas pontas: escreva
+no `init.sql` e rode o mesmo SQL no banco que já está de pé (ou recrie tudo com
+`docker compose down -v && docker compose up -d --wait && npm run db:seed`).
 
 ```sql
 CREATE TABLE empresas (
@@ -284,7 +293,7 @@ docs: |-
 Rode com `npm run test`. Preveja o resultado **antes**; se surpreender, tem
 aprendizado ali.
 
-Quatro hábitos que valem mais que a quantidade de requests:
+Cinco hábitos que valem mais que a quantidade de requests:
 
 - **Assertion que prova, não que passa.** Status `200` não diz que o filtro
   filtrou. Para busca, um bloco `runtime.scripts` do tipo `tests` percorrendo a
@@ -295,6 +304,14 @@ Quatro hábitos que valem mais que a quantidade de requests:
 - **Escolha o dado de teste com má-fé.** Se todo registro do banco casa com o
   termo buscado, o teste passa mesmo com o filtro quebrado. Procure o termo que
   recorta.
+- **A escrita cria o que vai usar e apaga no fim.** As requests de `POST`, `PUT`
+  e `DELETE` de contato formam um ciclo: cria, edita o que criou, remove. Duas
+  consequências, e as duas importam. A coleção fica **repetível** (rodar de novo
+  dá verde de novo, sem lixo acumulado); e nenhuma escrita toca dado que ela não
+  criou — rodar a suíte não pode editar nem apagar registro de verdade. Se o
+  recurso tiver coluna `UNIQUE`, gere o valor em runtime num `before-request`
+  (`bru.setVar` com `Date.now()`): valor chumbado passa na primeira rodada e
+  devolve `409` na segunda.
 - **Rota ainda não implementada entra com tag `pendente`.** Sem assertion (não há
   resposta para afirmar nada) e com `timeout` curto, para não pendurar a suíte. O
   `docs` dela vira a especificação do que falta.
@@ -326,6 +343,9 @@ relations (artefato de ferramenta) e o que escreve service, controller e rotas
 ## Checklist rápido
 
 - [ ] Tabela criada no banco, com as constraints pensadas (`NOT NULL`, `UNIQUE`, FK)
+- [ ] DDL da tabela escrito em `src/db/init.sql` — senão o schema some no
+      próximo `down -v` e a máquina limpa não sobe
+- [ ] Massa de teste em `src/db/seed.ts` cobrindo os casos que a coleção afirma
 - [ ] `npm run db:pull` rodado — schema e relations regenerados, **não editados à mão**
 - [ ] Tipo em `types/` derivado do schema (`$inferInsert` / `$inferSelect`)
 - [ ] Validação pura em `utils/` (se houver regra de formato) — unicidade fica no banco

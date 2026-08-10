@@ -10,6 +10,20 @@ services:
       - "12345:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      # Roda só na criação do volume: numa máquina limpa, o banco já sobe com o
+      # schema. Read-only porque o container não tem motivo para escrever aqui.
+      - ./src/db/init.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    # `docker compose up -d --wait` só volta quando este healthcheck passa. Sem
+    # ele, o compose retorna assim que o container sobe — antes de o init.sql
+    # ter rodado — e o comando seguinte pega o banco pela metade.
+    healthcheck:
+      # O `-h localhost` não é decoração: durante a execução do init.sql o
+      # Postgres roda num servidor temporário que só escuta socket unix, e um
+      # pg_isready sem host passaria verde antes de o schema existir.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app -h localhost"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
     restart: unless-stopped
 
 volumes:
