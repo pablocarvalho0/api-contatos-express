@@ -2,18 +2,23 @@ import { RequestHandler } from "express"
 import { Contact, UpdateContact } from "../types/contact"
 import { isValidEmail } from "../utils/validate-email"
 import { getAllContacts, getContactById, getContactByName, createContact, deleteContactbyId, idExist, emailExist, updateContact, getContactByEmail } from "../services/contacts"
+import z from "zod"
 
 export const createNewContact: RequestHandler = async (req, res) => {
-    if (!req.body || !req.body.name || !req.body.email) {
-        res.status(400).json({ error: 'Nome e e-mail são obrigatórios' })
-        return
-    }
-    const { name, email, phone } = req.body
+    const createContactSchema = z.object({
+        name: z.string('Name é obrigatório').min(2, 'Mínimo de 2 caracteres'),
+        email: z.email('E-mail inválido'),
+        phone: z.string().optional()
+    })
 
-    if (!isValidEmail(email)) {
-        res.status(400).json({ error: 'E-mail inválido' })
+    const schemaResult = createContactSchema.safeParse(req.body)
+    if (!schemaResult.success) {
+        const flattened = z.flattenError(schemaResult.error)
+        res.status(400).json({ error: flattened.fieldErrors })
         return
     }
+
+    const { name, email, phone } = schemaResult.data
 
     const emailExists = await emailExist(email)
     if (emailExists) {

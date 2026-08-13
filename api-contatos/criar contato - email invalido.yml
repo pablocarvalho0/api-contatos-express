@@ -16,8 +16,9 @@ http:
     type: json
     data: |-
       {
-        "name": "Teste",
-        "email": "nao-e-email"
+
+        "email": "emailjesus.com",
+        "phone": "12151485"
       }
   auth: inherit
 
