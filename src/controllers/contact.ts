@@ -1,10 +1,10 @@
 import { RequestHandler } from "express"
 import { Contact, UpdateContact } from "../types/contact"
 import { isValidEmail } from "../utils/validate-email"
-import { getAllContacts, getContactById, getContactByName, createContact, deleteContactbyId, idExist, emailExist, updateContact } from "../services/contacts"
+import { getAllContacts, getContactById, getContactByName, createContact, deleteContactbyId, idExist, emailExist, updateContact, getContactByEmail } from "../services/contacts"
 
 export const createNewContact: RequestHandler = async (req, res) => {
-    if (!req.body || req.body && (!req.body.name || !req.body.email)) {
+    if (!req.body || !req.body.name || !req.body.email) {
         res.status(400).json({ error: 'Nome e e-mail são obrigatórios' })
         return
     }
@@ -21,11 +21,12 @@ export const createNewContact: RequestHandler = async (req, res) => {
         return
     }
 
-    let contact: Contact = {
+    const contact: Contact = {
         name,
-        email,
+        email: email.toLowerCase(),
         phone
     }
+
     const newContact = await createContact(contact)
     res.status(201).json({ contact: newContact })
 }
@@ -63,15 +64,13 @@ export const updateContactById: RequestHandler = async (req, res) => {
     const { name, email, phone } = req.body
     const updates: UpdateContact = {}
     if (name !== undefined) updates.name = name
-    if (email !== undefined) updates.email = email
+    if (email !== undefined) updates.email = email.toLowerCase()
     if (phone !== undefined) updates.phone = phone
 
     if (Object.keys(updates).length === 0) {
         res.status(400).json({ error: 'Nenhum campo para atualizar' })
         return
     }
-
-
 
     const { id } = req.params
     const contactExist = await idExist(id as string)
@@ -85,9 +84,9 @@ export const updateContactById: RequestHandler = async (req, res) => {
             res.status(400).json({ error: 'E-mail inválido' })
             return
         }
-        const hasEmail = await emailExist(email)
+        const achado = await getContactByEmail(email)
 
-        if (hasEmail) {
+        if (achado && achado.id !== id) {
             res.status(409).json({ error: 'E-mail já cadastrado' })
             return
         }

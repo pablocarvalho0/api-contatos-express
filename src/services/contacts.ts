@@ -57,7 +57,8 @@ export async function idExist(id: string) {
 
 export async function createContact(newContact: Contact) {
     const contact_created = await db.insert(contacts).values(newContact).returning()
-    return contact_created
+    if (contact_created.length > 0) return contact_created[0]
+    return null
 }
 
 export async function deleteContactbyId(id: string) {
