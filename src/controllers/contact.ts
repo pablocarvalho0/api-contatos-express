@@ -1,16 +1,12 @@
 import { RequestHandler } from "express"
 import { Contact, UpdateContact } from "../types/contact"
-import { isValidEmail } from "../utils/validate-email"
 import { getAllContacts, getContactById, getContactByName, createContact, deleteContactbyId, idExist, emailExist, updateContact, getContactByEmail } from "../services/contacts"
 import z from "zod"
+import { createContactSchema } from "../schemas/create-contact"
+import { contactIdSchema } from "../schemas/contact-id"
+
 
 export const createNewContact: RequestHandler = async (req, res) => {
-    const createContactSchema = z.object({
-        name: z.string('Name é obrigatório').min(2, 'Mínimo de 2 caracteres'),
-        email: z.email('E-mail inválido'),
-        phone: z.string().optional()
-    })
-
     const schemaResult = createContactSchema.safeParse(req.body)
     if (!schemaResult.success) {
         const flattened = z.flattenError(schemaResult.error)
@@ -19,8 +15,9 @@ export const createNewContact: RequestHandler = async (req, res) => {
     }
 
     const { name, email, phone } = schemaResult.data
+    const normalizedEmail = email.toLowerCase()
 
-    const emailExists = await emailExist(email)
+    const emailExists = await emailExist(normalizedEmail)
     if (emailExists) {
         res.status(409).json({ error: 'E-mail já cadastrado' })
         return
@@ -28,36 +25,12 @@ export const createNewContact: RequestHandler = async (req, res) => {
 
     const contact: Contact = {
         name,
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         phone
     }
 
     const newContact = await createContact(contact)
     res.status(201).json({ contact: newContact })
-}
-
-export const getAll: RequestHandler = async (req, res) => {
-    const { name } = req.query
-    if (!name) {
-        const contacts_data = await getAllContacts()
-        res.status(200).json({ contacts: contacts_data })
-        return
-    }
-
-    let filteredContacts = await getContactByName(name as string)
-    res.status(200).json({ contacts: filteredContacts })
-}
-
-export const getOne: RequestHandler = async (req, res) => {
-    const { id } = req.params
-
-    const contact = await getContactById(id as string)
-    if (!contact) {
-        res.status(404).json({ error: 'Contato não encontrado' })
-        return
-    }
-
-    res.status(200).json({ contact })
 }
 
 export const updateContactById: RequestHandler = async (req, res) => {
@@ -66,10 +39,32 @@ export const updateContactById: RequestHandler = async (req, res) => {
         return
     }
 
-    const { name, email, phone } = req.body
+    const paramsResult = contactIdSchema.safeParse(req.params)
+    if (!paramsResult.success) {
+        res.status(400).json({ error: 'Parâmetro errado' })
+        return
+    }
+    const { id } = paramsResult.data
+
+    const contactExist = await idExist(id)
+    if (!contactExist) {
+        res.status(404).json({ error: 'Contato não encontrado' })
+        return
+    }
+
+    const schemaResult = createContactSchema.partial().safeParse(req.body)
+    if (!schemaResult.success) {
+        const flattened = z.flattenError(schemaResult.error)
+        res.status(400).json({ error: flattened.fieldErrors })
+        return
+    }
+
+    const { name, email, phone } = schemaResult.data
+    const normalizedEmail = email?.toLowerCase()
     const updates: UpdateContact = {}
+
     if (name !== undefined) updates.name = name
-    if (email !== undefined) updates.email = email.toLowerCase()
+    if (normalizedEmail !== undefined) updates.email = normalizedEmail
     if (phone !== undefined) updates.phone = phone
 
     if (Object.keys(updates).length === 0) {
@@ -77,19 +72,8 @@ export const updateContactById: RequestHandler = async (req, res) => {
         return
     }
 
-    const { id } = req.params
-    const contactExist = await idExist(id as string)
-    if (!contactExist) {
-        res.status(404).json({ error: 'Contato não encontrado' })
-        return
-    }
-
-    if (email) {
-        if (!isValidEmail(email)) {
-            res.status(400).json({ error: 'E-mail inválido' })
-            return
-        }
-        const achado = await getContactByEmail(email)
+    if (normalizedEmail) {
+        const achado = await getContactByEmail(normalizedEmail)
 
         if (achado && achado.id !== id) {
             res.status(409).json({ error: 'E-mail já cadastrado' })
@@ -97,14 +81,60 @@ export const updateContactById: RequestHandler = async (req, res) => {
         }
     }
 
-    const contactUpdated = await updateContact(updates, id as string)
+    const contactUpdated = await updateContact(updates, id)
     res.status(200).json({ contact: contactUpdated })
 }
 
-export const deleteContact: RequestHandler = async (req, res) => {
-    const { id } = req.params
+export const getAll: RequestHandler = async (req, res) => {
+    const contactQuerySchema = z.object({
+        name: z.string().min(2, 'Mínimo 2 caracteres').optional()
+    })
 
-    const deleted = await deleteContactbyId(id as string)
+    const queryResult = contactQuerySchema.safeParse(req.query)
+    if (!queryResult.success) {
+        const flattened = z.flattenError(queryResult.error)
+        res.status(400).json({ error: flattened.fieldErrors })
+        return
+    }
+    const name = queryResult.data
+
+    if (!name) {
+        const contacts_data = await getAllContacts()
+        res.status(200).json({ contacts: contacts_data })
+        return
+    }
+
+
+    const filteredContacts = await getContactByName(name as string)
+    res.status(200).json({ contacts: filteredContacts })
+}
+
+export const getOne: RequestHandler = async (req, res) => {
+    const paramsResult = contactIdSchema.safeParse(req.params)
+    if (!paramsResult.success) {
+        res.status(400).json({ error: 'Parâmetro errado' })
+        return
+    }
+    const { id } = paramsResult.data
+
+    const contact = await getContactById(id)
+    if (!contact) {
+        res.status(404).json({ error: 'Contato não encontrado' })
+        return
+    }
+
+    res.status(200).json({ contact })
+}
+
+export const deleteContact: RequestHandler = async (req, res) => {
+    const paramsResult = contactIdSchema.safeParse(req.params)
+    if (!paramsResult.success) {
+        res.status(400).json({ error: 'Parâmetro errado' })
+        return
+    }
+    const { id } = paramsResult.data
+
+    const deleted = await deleteContactbyId(id)
     if (deleted === null) {
         res.status(404).json({ error: 'Contato não encontrado' })
         return
